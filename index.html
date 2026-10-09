@@ -387,7 +387,7 @@ textarea {
   </section>
 
   <p class="note">Everything stays on this device. No account needed.<br><span id="offlineStatus"></span></p>
-  <p class="note" id="appVersion">Version 1.2.0 (Oct 9, 2026)</p>
+  <p class="note" id="appVersion">Version 1.2.1 (Oct 9, 2026)</p>
 </main>
 
 <script>
@@ -866,9 +866,10 @@ textarea {
     }
     function parseBackup(text) {
       text = String(text || '').replace(/\s+/g, '');
-      if (text.indexOf('TT1:') !== 0) return null;
+      var at = text.indexOf('TT1:');
+      if (at < 0) return null;
       try {
-        var obj = JSON.parse(decodeURIComponent(escape(atob(text.slice(4)))));
+        var obj = JSON.parse(decodeURIComponent(escape(atob(text.slice(at + 4)))));
         if (!obj || !Array.isArray(obj.days) || obj.days.length !== 7) return null;
         obj.days = obj.days.map(function (v) {
           return (typeof v === 'number' && isFinite(v) && v >= 0 && v <= 100000) ? Math.round(v) : null;
@@ -895,7 +896,8 @@ textarea {
 
     $('backupRestore').addEventListener('click', function () {
       var obj = parseBackup($('backupBox').value);
-      if (!obj) { backupMsg('Paste a backup (it starts with TT1:) into the box first.'); return; }
+      if (!obj) { backupMsg('That is not a valid backup. Paste the whole text that starts with TT1: into the box.'); return; }
+      if (!$('backupRestore').getAttribute('data-armed')) { backupMsg('Tap the button again to confirm. This replaces the hours on this phone.'); }
       armConfirm($('backupRestore'), function () {
         S = Object.assign(blank(), obj);
         S.mode = S.mode === 'week' ? 'week' : 'day';
@@ -908,7 +910,11 @@ textarea {
         rollover();
         save();
         syncInputs(); renderWeek(); tick();
-        backupMsg('Restored. Your hours are back.');
+        if (obj.weekKey && obj.weekKey !== S.weekKey) {
+          backupMsg('Restored, but that backup is from an earlier week, so its hours are not in this week\'s log.');
+        } else {
+          backupMsg('Restored. Your hours are back.');
+        }
       });
     });
 
