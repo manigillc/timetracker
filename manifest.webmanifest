@@ -1,0 +1,22 @@
+{
+  "name": "Time Tracker",
+  "short_name": "Time Tracker",
+  "description": "Daily and weekly hours tracker with clock-out times.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#E9EFEC",
+  "theme_color": "#0F766E",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

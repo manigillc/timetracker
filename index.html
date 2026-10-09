@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Time Tracker</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Time Tracker">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#E9EFEC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D1917" media="(prefers-color-scheme: dark)">
+<style>
+:root {
+  --paper: #E9EFEC;
+  --surface: #FBFDFC;
+  --ink: #14332F;
+  --muted: #566F6A;
+  --line: #CBD8D3;
+  --field: #F1F6F4;
+  --accent: #0F766E;
+  --accent-ink: #FFFFFF;
+  --ok: #2F8F83;
+  --warn: #E0A21B;
+  --warn-bg: #FFF1D6;
+  --warn-ink: #6E4300;
+  --bad: #C8372D;
+  --bad-bg: #FDE4E1;
+  --bad-ink: #8C1D13;
+  --info-bg: #DDEDE9;
+  --info-ink: #14332F;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0D1917;
+    --surface: #152522;
+    --ink: #E3EFEC;
+    --muted: #8FAAA4;
+    --line: #274039;
+    --field: #1B2F2B;
+    --accent: #3DB8A8;
+    --accent-ink: #06211D;
+    --ok: #3DB8A8;
+    --warn: #E8B339;
+    --warn-bg: #3A2A08;
+    --warn-ink: #F6CF7A;
+    --bad: #F0675C;
+    --bad-bg: #3B1511;
+    --bad-ink: #FFB4AB;
+    --info-bg: #1D3430;
+    --info-ink: #E3EFEC;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0D1917;
+  --surface: #152522;
+  --ink: #E3EFEC;
+  --muted: #8FAAA4;
+  --line: #274039;
+  --field: #1B2F2B;
+  --accent: #3DB8A8;
+  --accent-ink: #06211D;
+  --ok: #3DB8A8;
+  --warn: #E8B339;
+  --warn-bg: #3A2A08;
+  --warn-ink: #F6CF7A;
+  --bad: #F0675C;
+  --bad-bg: #3B1511;
+  --bad-ink: #FFB4AB;
+  --info-bg: #1D3430;
+  --info-ink: #E3EFEC;
+}
+:root[data-theme="dark"] .clock[data-state="warn"] .cd-value { color: var(--warn); }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+  display: grid;
+  gap: 14px;
+}
+h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 17px; margin: 0 0 10px; font-weight: 650; }
+p { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+header { display: grid; gap: 12px; padding-top: 4px; }
+
+/* segmented control */
+.seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  background: var(--line);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 3px;
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--muted);
+}
+.seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0,0,0,.18);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+/* banner */
+.banner {
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 600;
+}
+.banner[data-kind="warn"] { background: var(--warn-bg); color: var(--warn-ink); border-left: 6px solid var(--warn); }
+.banner[data-kind="bad"]  { background: var(--bad-bg);  color: var(--bad-ink);  border-left: 6px solid var(--bad); }
+.banner[data-kind="info"] { background: var(--info-bg); color: var(--info-ink); border-left: 6px solid var(--ok); }
+
+/* countdown */
+.clock { padding: 20px 16px 18px; }
+.cd-label { color: var(--muted); font-weight: 600; }
+.cd-value {
+  font-family: ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: clamp(46px, 15vw, 76px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 4px 0 6px;
+}
+.cd-sub { font-size: 18px; font-weight: 600; }
+.ribbon {
+  --tick: 12.5%;
+  margin-top: 16px;
+  height: 18px;
+  border-radius: 6px;
+  background-color: var(--field);
+  background-image: repeating-linear-gradient(to right,
+    transparent 0, transparent calc(var(--tick) - 1px),
+    var(--line) calc(var(--tick) - 1px), var(--line) var(--tick));
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.ribbon > div { height: 100%; width: 0; background: var(--ok); }
+.clock[data-state="warn"] .ribbon > div { background: var(--warn); }
+.clock[data-state="bad"] .ribbon > div { background: var(--bad); }
+.clock[data-state="bad"] .cd-value { color: var(--bad); }
+.clock[data-state="warn"] .cd-value { color: var(--warn-ink); }
+@media (prefers-color-scheme: dark) {
+  .clock[data-state="warn"] .cd-value { color: var(--warn); }
+}
+.ribbon-text { margin-top: 6px; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+/* form rows */
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.row:first-of-type { border-top: 0; }
+.row label { font-weight: 600; grid-column: 1 / -1; }
+.field-line { display: flex; gap: 8px; align-items: center; grid-column: 1 / -1; }
+input[type="time"], input[type="number"], input[type="text"], select {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-height: 46px;
+  padding: 0 12px;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+input[type="time"] { flex: 1; }
+input[type="number"] { width: 110px; }
+.mini {
+  min-height: 46px;
+  min-width: 56px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 0 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mini.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.mini[disabled] { opacity: .45; cursor: default; }
+.subseg { margin: 4px 0 6px; }
+.hint { color: var(--muted); font-size: 14px; }
+
+dl.stats { margin: 12px 0 0; display: grid; gap: 6px; }
+dl.stats div { display: flex; justify-content: space-between; gap: 12px; }
+dl.stats dt { color: var(--muted); }
+dl.stats dd { margin: 0; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+dl.stats dd.bad { color: var(--bad); }
+dl.stats dd.ok { color: var(--ok); }
+
+.save-line { display: flex; gap: 8px; margin-top: 10px; }
+.save-line select { flex: 1; }
+.save-line .mini { flex: 1.3; }
+
+/* week log */
+.wk {
+  display: grid;
+  grid-template-columns: 52px 1fr 76px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+}
+.wk .day { font-weight: 650; }
+.wk.today .day::after { content: " •"; color: var(--accent); }
+.wk input { width: 100%; }
+.wk .dec { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; font-size: 15px; }
+.wk.total { border-top: 2px solid var(--ink); margin-top: 6px; padding-top: 10px; font-weight: 700; }
+.wk.total .dec { color: var(--ink); }
+.wk-left { display: flex; justify-content: space-between; margin-top: 4px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.wk-left.bad { color: var(--bad); }
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 14px; }
+.notice { text-align: center; padding: 0 8px; font-weight: 600; }
+.note { text-align: center; color: var(--muted); font-size: 13px; padding: 0 8px; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Time Tracker</h1>
+    <div class="seg" role="group" aria-label="Hours target">
+      <button type="button" data-mode="day" aria-pressed="true">Day: 8 hrs</button>
+      <button type="button" data-mode="week" aria-pressed="false">Week: 40 hrs</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
+
+  <section id="clock" class="card clock" data-state="ok" aria-label="Countdown">
+    <p id="cdLabel" class="cd-label">Time left today</p>
+    <p id="cdValue" class="cd-value">-:--:--</p>
+    <p id="cdSub" class="cd-sub">Enter your clock-in time below.</p>
+    <div id="ribbon" class="ribbon" aria-hidden="true"><div id="ribbonFill"></div></div>
+    <p id="ribbonText" class="ribbon-text"></p>
+  </section>
+
+  <p class="hint notice">Planning aid only, not an official record. Always check your hours against the official time clock.</p>
+
+  <section class="card" aria-label="Today">
+    <h2>Today</h2>
+
+    <div class="row">
+      <label for="timeIn">Clock in</label>
+      <div class="field-line">
+        <input type="time" id="timeIn">
+        <button type="button" class="mini" data-now="timeIn">Now</button>
+        <button type="button" class="mini" data-clear="timeIn" aria-label="Clear clock in">Clear</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label id="lunchModeLabel">Lunch</label>
+      <div class="seg subseg" role="group" aria-labelledby="lunchModeLabel" style="grid-column:1 / -1">
+        <button type="button" data-lunchmode="live" aria-pressed="true">Clock it</button>
+        <button type="button" data-lunchmode="fixed" aria-pressed="false">Fixed length</button>
+      </div>
+    </div>
+
+    <div id="liveLunch">
+      <div class="row">
+        <label for="lunchStart">Lunch start</label>
+        <div class="field-line">
+          <input type="time" id="lunchStart">
+          <button type="button" class="mini" data-now="lunchStart">Now</button>
+          <button type="button" class="mini" data-clear="lunchStart" aria-label="Clear lunch start">Clear</button>
+        </div>
+      </div>
+      <div class="row">
+        <label for="lunchEnd">Lunch end</label>
+        <div class="field-line">
+          <input type="time" id="lunchEnd">
+          <button type="button" class="mini" data-now="lunchEnd">Now</button>
+          <button type="button" class="mini" data-clear="lunchEnd" aria-label="Clear lunch end">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <label for="planned" id="plannedLabel">Expected lunch (minutes)</label>
+      <div class="field-line">
+        <input type="number" id="planned" inputmode="numeric" min="0" max="240" step="5" value="30">
+        <span class="hint" id="plannedHint">Used until lunch is clocked.</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <label for="actualOut">Actual clock out</label>
+      <div class="field-line">
+        <input type="time" id="actualOut">
+        <button type="button" class="mini" data-now="actualOut">Now</button>
+        <button type="button" class="mini" data-clear="actualOut" aria-label="Clear actual clock out">Clear</button>
+      </div>
+    </div>
+
+    <dl class="stats" id="stats"></dl>
+
+    <div class="save-line">
+      <select id="saveDay" aria-label="Day to save"></select>
+      <button type="button" class="mini primary" id="saveBtn" disabled>Save day to week</button>
+    </div>
+    <p class="hint" id="saveHint" style="margin-top:8px" aria-live="polite">Enter your actual clock out to save the day.</p>
+
+    <div class="foot">
+      <button type="button" class="mini" id="clearDay">Clear today</button>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Weekly log">
+    <h2>This week</h2>
+    <div id="weekRows"></div>
+    <div class="wk total">
+      <span class="day">Total</span>
+      <span id="wkTotal" style="font-variant-numeric:tabular-nums">0:00</span>
+      <span id="wkTotalDec" class="dec">0.00</span>
+    </div>
+    <div id="wkLeft" class="wk-left"></div>
+    <p class="hint" style="margin-top:10px">Type each day's hours as the time clock shows them, in decimal (like 8.23, which is 8:14). In Week mode, today counts live from the clock above, so don't save today until you've clocked out.</p>
+    <div class="foot">
+      <button type="button" class="mini" id="newWeek">Start new week</button>
+    </div>
+  </section>
+
+  <p class="note">Everything stays on this device. No account, no internet needed.</p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY = 'timetracker.v1';
+  var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var DAY_TARGET = 480;   // 8 hours in minutes
+  var WEEK_TARGET = 2400; // 40 hours in minutes
+  var S;
+
+  function $(id) { return document.getElementById(id); }
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  /* ---------- date + time helpers ---------- */
+  function dateKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function mondayKey(d) {
+    var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+    return dateKey(x);
+  }
+  function todayIdx(d) { return (d.getDay() + 6) % 7; } // Mon=0 ... Sun=6
+
+  function toMin(v) {
+    if (!v) return null;
+    var p = String(v).split(':');
+    if (p.length < 2) return null;
+    var h = parseInt(p[0], 10), m = parseInt(p[1], 10);
+    if (isNaN(h) || isNaN(m)) return null;
+    return h * 60 + m;
+  }
+  function nowHHMM() { var d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+
+  function fmtClock(min) {
+    min = Math.floor(min);
+    var nextDay = min >= 1440;
+    min = ((min % 1440) + 1440) % 1440;
+    var h = Math.floor(min / 60), m = min % 60;
+    var ap = h >= 12 ? 'PM' : 'AM';
+    var h12 = h % 12; if (h12 === 0) h12 = 12;
+    return h12 + ':' + pad(m) + ' ' + ap + (nextDay ? ' (next day)' : '');
+  }
+  function fmtHM(min) {
+    var sign = min < 0 ? '-' : '';
+    min = Math.abs(Math.round(min));
+    return sign + Math.floor(min / 60) + ':' + pad(min % 60);
+  }
+  function fmtDec(min) { return (min / 60).toFixed(2); }
+  function fmtHMS(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return h + ':' + pad(m) + ':' + pad(s);
+  }
+  function parseDur(str) {
+    str = String(str || '').trim();
+    if (!str) return null;
+    var m = /^(\d{1,2}):(\d{1,2})$/.exec(str);
+    if (m) { var mm = parseInt(m[2], 10); if (mm > 59) return NaN; return parseInt(m[1], 10) * 60 + mm; }
+    if (/^\d+(\.\d+)?$/.test(str)) return Math.round(parseFloat(str) * 60);
+    return NaN;
+  }
+
+  /* ---------- state ---------- */
+  function emptyDays() { return [null, null, null, null, null, null, null]; }
+  function blank() {
+    return {
+      mode: 'day', lunchMode: 'live', planned: 30,
+      date: '', timeIn: '', lunchStart: '', lunchEnd: '', actualOut: '',
+      weekKey: '', days: emptyDays(), history: []
+    };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      S = raw ? Object.assign(blank(), JSON.parse(raw)) : blank();
+    } catch (e) { S = blank(); }
+    if (!Array.isArray(S.days) || S.days.length !== 7) S.days = emptyDays();
+    rollover();
+  }
+  function rollover() {
+    var now = new Date(), dk = dateKey(now), wk = mondayKey(now);
+    if (S.weekKey && S.weekKey !== wk) {
+      if (S.days.some(function (x) { return x != null; })) {
+        S.history.push({ weekKey: S.weekKey, days: S.days });
+        S.history = S.history.slice(-12);
+      }
+      S.days = emptyDays();
+    }
+    S.weekKey = wk;
+    if (S.date !== dk) {
+      S.date = dk; S.timeIn = ''; S.lunchStart = ''; S.lunchEnd = ''; S.actualOut = '';
+    }
+    save();
+  }
+
+  /* ---------- core math (all whole minutes) ---------- */
+  function lunchAt(t) {
+    if (S.lunchMode === 'fixed') return { proj: S.planned, taken: S.planned, note: 'fixed length' };
+    var ls = toMin(S.lunchStart), le = toMin(S.lunchEnd);
+    if (ls != null && le != null && le >= ls) return { proj: le - ls, taken: le - ls, note: 'clocked' };
+    if (ls != null) { var tk = Math.max(0, t - ls); return { proj: tk, taken: tk, note: 'in progress' }; }
+    return { proj: S.planned, taken: 0, note: 'expected, not clocked yet' };
+  }
+
+  function calc(nowSec) {
+    var nowMin = Math.floor(nowSec / 60);
+    var tIn = toMin(S.timeIn);
+    var idx = todayIdx(new Date());
+    var banked = 0, i;
+    for (i = 0; i < 7; i++) if (i !== idx && S.days[i] != null) banked += S.days[i];
+
+    var need = S.mode === 'day' ? DAY_TARGET : Math.max(0, WEEK_TARGET - banked);
+    var capNeed = Math.max(0, WEEK_TARGET - banked);
+    var r = { banked: banked, idx: idx, need: need, hasIn: tIn != null };
+    if (tIn == null) return r;
+
+    var L = lunchAt(nowMin);
+    var dayOut = tIn + L.proj + need;
+    var capOut = tIn + L.proj + capNeed;
+    r.capFirst = S.mode === 'day' && capOut < dayOut;
+    r.checkout = r.capFirst ? capOut : dayOut;
+    r.dayOut = dayOut;
+    r.lunch = L;
+    r.remainingSec = r.checkout * 60 - nowSec;
+    r.worked = Math.max(0, nowMin - tIn - (S.lunchMode === 'fixed' ? S.planned : L.taken));
+
+    var out = toMin(S.actualOut);
+    if (out != null) {
+      var LA = lunchAt(out);
+      r.outMin = out;
+      r.actualLunch = LA;
+      r.actualWorked = Math.max(0, out - tIn - LA.proj);
+    }
+    return r;
+  }
+
+  /* ---------- rendering ---------- */
+  function setBanner(kind, html) {
+    var b = $('banner');
+    if (!kind) { b.hidden = true; return; }
+    b.hidden = false;
+    b.setAttribute('data-kind', kind);
+    if (b.getAttribute('data-text') !== html) { b.textContent = html; b.setAttribute('data-text', html); }
+  }
+
+  function renderClock(r) {
+    var clock = $('clock');
+    var unit = S.mode === 'day' ? 'today' : 'this week';
+    var target = S.mode === 'day' ? DAY_TARGET : WEEK_TARGET;
+    var tickPct = S.mode === 'day' ? '12.5%' : '20%';
+    $('ribbon').style.setProperty('--tick', tickPct);
+
+    if (!r.hasIn) {
+      $('cdLabel').textContent = 'Time left ' + unit;
+      $('cdValue').textContent = '-:--:--';
+      $('cdSub').textContent = 'Enter your clock-in time below.';
+      $('ribbonFill').style.width = '0%';
+      $('ribbonText').textContent = '';
+      clock.setAttribute('data-state', 'ok');
+      setBanner(null);
+      return;
+    }
+
+    var workedForBar, state = 'ok', bannerKind = null, bannerText = '';
+
+    if (r.actualWorked != null) {
+      // clocked out: freeze and show how the day landed against the limit
+      var diff = r.checkout - r.outMin; // minutes of room left at clock-out (negative = over)
+      $('cdLabel').textContent = 'Clocked out at ' + fmtClock(r.outMin);
+      if (diff >= 0) {
+        $('cdValue').textContent = fmtHM(diff);
+        $('cdSub').textContent = 'under your limit';
+      } else {
+        $('cdValue').textContent = '+' + fmtHM(-diff);
+        $('cdSub').textContent = 'over your limit';
+        state = 'bad';
+        bannerKind = 'bad';
+        bannerText = 'You clocked out ' + (-diff) + ' min past your ' + (S.mode === 'day' ? '8-hour' : '40-hour') + ' limit.';
+      }
+      workedForBar = S.mode === 'day' ? r.actualWorked : r.banked + r.actualWorked;
+    } else {
+      var remMin = r.remainingSec / 60;
+      $('cdLabel').textContent = 'Time left ' + unit;
+      if (r.remainingSec > 0) {
+        $('cdValue').textContent = fmtHMS(r.remainingSec);
+        $('cdSub').textContent = 'Clock out at ' + fmtClock(r.checkout);
+      } else {
+        $('cdValue').textContent = '+' + fmtHMS(-r.remainingSec);
+        $('cdSub').textContent = 'Past your clock-out time of ' + fmtClock(r.checkout);
+      }
+      workedForBar = S.mode === 'day' ? r.worked : r.banked + r.worked;
+
+      if (S.mode === 'week' && r.need <= 0) {
+        state = 'bad'; bannerKind = 'bad';
+        bannerText = 'Your saved days already total 40 hours. Do not log more time this week.';
+      } else if (r.remainingSec <= 0) {
+        state = 'bad'; bannerKind = 'bad';
+        bannerText = 'Clock out now. You are at your ' + (S.mode === 'day' ? '8-hour' : '40-hour') + ' limit.';
+      } else if (remMin <= 5) {
+        state = 'bad'; bannerKind = 'bad';
+        bannerText = 'Less than 5 minutes left. Clock out at ' + fmtClock(r.checkout) + '.';
+      } else if (remMin <= 15) {
+        state = 'warn'; bannerKind = 'warn';
+        bannerText = 'About 15 minutes left. Clock out at ' + fmtClock(r.checkout) + '.';
+      } else if (r.capFirst) {
+        state = 'warn'; bannerKind = 'warn';
+        bannerText = 'Your weekly 40-hour cap arrives before a full 8-hour day. Clock out by ' + fmtClock(r.checkout) + '.';
+      }
+    }
+
+    clock.setAttribute('data-state', state);
+    setBanner(bannerKind, bannerText);
+    $('ribbonFill').style.width = Math.min(100, (workedForBar / target) * 100) + '%';
+    $('ribbonText').textContent = fmtHM(workedForBar) + ' of ' + fmtHM(target) + ' ' + (S.mode === 'day' ? 'today' : 'this week');
+  }
+
+  function statRow(label, value, cls) {
+    return '<div><dt>' + label + '</dt><dd' + (cls ? ' class="' + cls + '"' : '') + '>' + value + '</dd></div>';
+  }
+
+  function renderStats(r) {
+    var html = '';
+    if (r.hasIn) {
+      html += statRow('Worked so far', fmtHM(r.worked) + ' (' + fmtDec(r.worked) + ' hrs)');
+      html += statRow('Lunch counted', r.lunch.proj + ' min (' + r.lunch.note + ')');
+      if (r.actualWorked != null) {
+        html += statRow('Actual worked', fmtHM(r.actualWorked) + ' (' + fmtDec(r.actualWorked) + ' hrs)');
+        if (r.actualLunch.note.indexOf('expected') === 0) {
+          html += statRow('Note', 'No lunch clocked, using expected lunch');
+        }
+        var total = S.mode === 'day' ? r.actualWorked : r.banked + r.actualWorked;
+        var target = S.mode === 'day' ? DAY_TARGET : WEEK_TARGET;
+        var delta = total - target;
+        var label = S.mode === 'day' ? 'Versus 8:00' : 'Week versus 40:00';
+        html += statRow(label, (delta > 0 ? '+' : '') + fmtHM(delta), delta > 0 ? 'bad' : 'ok');
+      }
+    }
+    $('stats').innerHTML = html;
+
+    var sb = $('saveBtn');
+    sb.disabled = r.actualWorked == null;
+    if (r.actualWorked == null && !$('saveHint').getAttribute('data-saved')) {
+      $('saveHint').textContent = 'Enter your actual clock out to save the day.';
+    }
+  }
+
+  function renderWeek() {
+    var box = $('weekRows');
+    var idx = todayIdx(new Date());
+    if (!box.children.length) {
+      DAYS.forEach(function (d, i) {
+        var row = document.createElement('div');
+        row.className = 'wk';
+        row.id = 'wkrow' + i;
+        row.innerHTML =
+          '<span class="day">' + d + '</span>' +
+          '<input type="text" id="wk' + i + '" inputmode="decimal" placeholder="0.00" aria-label="' + d + ' hours, decimal like 8.23" autocomplete="off">' +
+          '<span class="dec" id="wkdec' + i + '"></span>';
+        box.appendChild(row);
+        row.querySelector('input').addEventListener('change', function () { onWeekEdit(i); });
+      });
+    }
+    var total = 0;
+    for (var i = 0; i < 7; i++) {
+      var v = S.days[i];
+      $('wkrow' + i).className = 'wk' + (i === idx ? ' today' : '');
+      var inp = $('wk' + i);
+      if (document.activeElement !== inp) inp.value = v == null ? '' : fmtDec(v);
+      $('wkdec' + i).textContent = v == null ? '' : fmtHM(v);
+      if (v != null) total += v;
+    }
+    $('wkTotal').textContent = fmtDec(total) + ' hrs';
+    $('wkTotalDec').textContent = fmtHM(total);
+    var left = WEEK_TARGET - total;
+    var el = $('wkLeft');
+    el.className = 'wk-left' + (left < 0 ? ' bad' : '');
+    el.innerHTML = '<span>' + (left < 0 ? 'Over 40.00 hrs by' : 'Left to 40.00 hrs') + '</span><span>' + fmtDec(Math.abs(left)) + ' (' + fmtHM(Math.abs(left)) + ')</span>';
+  }
+
+  function onWeekEdit(i) {
+    var inp = $('wk' + i);
+    var v = parseDur(inp.value);
+    if (v !== null && isNaN(v)) {
+      inp.setAttribute('aria-invalid', 'true');
+      inp.value = S.days[i] == null ? '' : fmtDec(S.days[i]);
+      return;
+    }
+    inp.removeAttribute('aria-invalid');
+    S.days[i] = v;
+    save();
+    renderWeek();
+    tick();
+  }
+
+  function syncInputs() {
+    $('timeIn').value = S.timeIn;
+    $('lunchStart').value = S.lunchStart;
+    $('lunchEnd').value = S.lunchEnd;
+    $('actualOut').value = S.actualOut;
+    $('planned').value = S.planned;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-mode') === S.mode ? 'true' : 'false');
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-lunchmode]'), function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-lunchmode') === S.lunchMode ? 'true' : 'false');
+    });
+    var fixed = S.lunchMode === 'fixed';
+    $('liveLunch').hidden = fixed;
+    $('plannedLabel').textContent = fixed ? 'Lunch length (minutes)' : 'Expected lunch (minutes)';
+    $('plannedHint').textContent = fixed ? '' : 'Used until lunch is clocked.';
+  }
+
+  function tick() {
+    var now = new Date();
+    if (dateKey(now) !== S.date) { rollover(); syncInputs(); renderWeek(); }
+    var nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    var r = calc(nowSec);
+    renderClock(r);
+    renderStats(r);
+  }
+
+  /* ---------- events ---------- */
+  function bind() {
+    var saveDay = $('saveDay');
+    DAYS.forEach(function (d, i) {
+      var o = document.createElement('option');
+      o.value = i; o.textContent = d;
+      saveDay.appendChild(o);
+    });
+    saveDay.value = todayIdx(new Date());
+
+    ['timeIn', 'lunchStart', 'lunchEnd', 'actualOut'].forEach(function (id) {
+      $(id).addEventListener('input', function () {
+        S[id] = $(id).value; save();
+        $('saveHint').removeAttribute('data-saved');
+        tick();
+      });
+    });
+    $('planned').addEventListener('input', function () {
+      var n = parseInt($('planned').value, 10);
+      S.planned = isNaN(n) ? 0 : Math.max(0, Math.min(240, n));
+      save(); tick();
+    });
+
+    document.addEventListener('click', function (e) {
+      var t = e.target.closest('button');
+      if (!t) return;
+      var id;
+      if ((id = t.getAttribute('data-now'))) {
+        S[id] = nowHHMM(); $(id).value = S[id]; save(); tick();
+      } else if ((id = t.getAttribute('data-clear'))) {
+        S[id] = ''; $(id).value = ''; save(); tick();
+      } else if (t.getAttribute('data-mode')) {
+        S.mode = t.getAttribute('data-mode'); save(); syncInputs(); tick();
+      } else if (t.getAttribute('data-lunchmode')) {
+        S.lunchMode = t.getAttribute('data-lunchmode'); save(); syncInputs(); tick();
+      }
+    });
+
+    $('saveBtn').addEventListener('click', function () {
+      var now = new Date();
+      var r = calc(now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds());
+      if (r.actualWorked == null) return;
+      var i = parseInt($('saveDay').value, 10);
+      S.days[i] = r.actualWorked;
+      save();
+      renderWeek();
+      $('saveHint').setAttribute('data-saved', '1');
+      $('saveHint').textContent = 'Saved ' + fmtHM(r.actualWorked) + ' to ' + DAYS[i] + '.';
+      tick();
+    });
+
+    function armConfirm(btn, action) {
+      if (btn.getAttribute('data-armed')) {
+        clearTimeout(btn._t);
+        btn.removeAttribute('data-armed');
+        btn.textContent = btn.getAttribute('data-label');
+        action();
+        return;
+      }
+      btn.setAttribute('data-label', btn.textContent);
+      btn.setAttribute('data-armed', '1');
+      btn.textContent = 'Tap again to confirm';
+      btn._t = setTimeout(function () {
+        btn.removeAttribute('data-armed');
+        btn.textContent = btn.getAttribute('data-label');
+      }, 4000);
+    }
+
+    $('clearDay').addEventListener('click', function () {
+      armConfirm($('clearDay'), function () {
+        S.timeIn = S.lunchStart = S.lunchEnd = S.actualOut = '';
+        save(); syncInputs();
+        $('saveHint').removeAttribute('data-saved');
+        tick();
+      });
+    });
+
+    $('newWeek').addEventListener('click', function () {
+      armConfirm($('newWeek'), function () {
+        if (S.days.some(function (x) { return x != null; })) {
+          S.history.push({ weekKey: S.weekKey, days: S.days });
+          S.history = S.history.slice(-12);
+        }
+        S.days = emptyDays();
+        save(); renderWeek(); tick();
+      });
+    });
+
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+  }
+
+  load();
+  bind();
+  syncInputs();
+  renderWeek();
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+<script>
+(function () {
+  // Ask the browser to keep this app's saved hours (harmless if unsupported).
+  try { if (navigator.storage && navigator.storage.persist) { navigator.storage.persist(); } } catch (e) {}
+  // Offline support: only on a real https page (not inside the native Capacitor app).
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
