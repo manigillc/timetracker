@@ -1,7 +1,7 @@
 /* Time Tracker service worker.
    Online: loads the newest files and refreshes the saved copy.
    Offline (or very slow connection): opens the saved copy. */
-var CACHE = 'timetracker-v2';
+var CACHE = 'timetracker-v3';
 var FILES = [
   './',
   './index.html',
@@ -41,7 +41,8 @@ self.addEventListener('fetch', function (event) {
       caches.match(req, { ignoreSearch: true }).then(answer);
     }, 3000);
 
-    fetch(req).then(function (res) {
+    // 'no-cache' makes the browser check with GitHub every time instead of reusing a copy it fetched in the last 10 minutes.
+    fetch(req, { cache: 'no-cache' }).then(function (res) {
       clearTimeout(timer);
       if (res && res.ok && !res.redirected) {
         var copy = res.clone();
