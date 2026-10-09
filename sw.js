@@ -1,7 +1,7 @@
 /* Time Tracker service worker.
    Online: loads the newest files and refreshes the saved copy.
    Offline (or very slow connection): opens the saved copy. */
-var CACHE = 'timetracker-v1';
+var CACHE = 'timetracker-v2';
 var FILES = [
   './',
   './index.html',
@@ -13,7 +13,10 @@ var FILES = [
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
-    caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); })
+    caches.open(CACHE).then(function (c) {
+      // Save each file on its own so one missing file can't stop the whole install.
+      return Promise.all(FILES.map(function (f) { return c.add(f).catch(function () {}); }));
+    }).then(function () { return self.skipWaiting(); })
   );
 });
 
@@ -40,18 +43,17 @@ self.addEventListener('fetch', function (event) {
 
     fetch(req).then(function (res) {
       clearTimeout(timer);
-      if (res && res.ok) {
+      if (res && res.ok && !res.redirected) {
         var copy = res.clone();
         caches.open(CACHE).then(function (c) { c.put(req, copy); });
       }
       if (!settled) { settled = true; resolve(res); }
     }).catch(function () {
       clearTimeout(timer);
-      caches.match(req, { ignoreSearch: true }).then(function (hit) {
-        return hit || caches.match('./index.html');
-      }).then(function (hit) {
-        if (!settled) { settled = true; resolve(hit || Response.error()); }
-      });
+      caches.match(req, { ignoreSearch: true })
+        .then(function (hit) { return hit || caches.match('./index.html'); })
+        .then(function (hit) { return hit || caches.match('./'); })
+        .then(function (hit) { if (!settled) { settled = true; resolve(hit || Response.error()); } });
     });
   }));
 });

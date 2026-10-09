@@ -364,7 +364,7 @@ dl.stats dd.ok { color: var(--ok); }
     </div>
   </section>
 
-  <p class="note">Everything stays on this device. No account, no internet needed.</p>
+  <p class="note">Everything stays on this device. No account needed.<br><span id="offlineStatus"></span></p>
 </main>
 
 <script>
@@ -791,12 +791,28 @@ dl.stats dd.ok { color: var(--ok); }
 (function () {
   // Ask the browser to keep this app's saved hours (harmless if unsupported).
   try { if (navigator.storage && navigator.storage.persist) { navigator.storage.persist(); } } catch (e) {}
-  // Offline support: only on a real https page (not inside the native Capacitor app).
-  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js').catch(function () {});
-    });
+
+  var el = document.getElementById('offlineStatus');
+  function show(ok) {
+    if (!el) return;
+    el.textContent = ok ? 'Offline ready.' : 'Not saved for offline yet. Stay online a few seconds, then close and reopen.';
   }
+
+  // Only on a real https page (not inside the native Capacitor app).
+  if (!('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
+
+  function check() {
+    if (!navigator.serviceWorker.controller) { show(false); return; }
+    caches.match('./index.html').then(function (hit) { show(!!hit); }).catch(function () { show(false); });
+  }
+
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js', { scope: './' })
+      .then(function () { return navigator.serviceWorker.ready; })
+      .then(function () { setTimeout(check, 600); })
+      .catch(function () { show(false); });
+    navigator.serviceWorker.addEventListener('controllerchange', function () { setTimeout(check, 600); });
+  });
 })();
 </script>
 </body>
