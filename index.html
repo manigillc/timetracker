@@ -254,6 +254,17 @@ dl.stats dd.ok { color: var(--ok); }
 .wk-left.bad { color: var(--bad); }
 .foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 14px; }
 .notice { text-align: center; padding: 0 8px; font-weight: 600; }
+textarea {
+  width: 100%;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  resize: vertical;
+  margin-top: 8px;
+}
 .note { text-align: center; color: var(--muted); font-size: 13px; padding: 0 8px; }
 [hidden] { display: none !important; }
 </style>
@@ -364,7 +375,19 @@ dl.stats dd.ok { color: var(--ok); }
     </div>
   </section>
 
+  <section class="card" aria-label="Backup">
+    <h2>Backup</h2>
+    <p class="hint">Your hours are saved on this phone. Tap Copy backup now and then and paste it into Notes or an email to yourself. To restore, paste it back here and tap Restore.</p>
+    <textarea id="backupBox" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Backup text" placeholder="Backup text appears here"></textarea>
+    <div class="save-line">
+      <button type="button" class="mini primary" id="backupCopy">Copy backup</button>
+      <button type="button" class="mini" id="backupRestore">Restore from text</button>
+    </div>
+    <p class="hint" id="backupMsg" style="margin-top:8px" aria-live="polite"></p>
+  </section>
+
   <p class="note">Everything stays on this device. No account needed.<br><span id="offlineStatus"></span></p>
+  <p class="note" id="appVersion">Version 1.2.0 (Oct 9, 2026)</p>
 </main>
 
 <script>
@@ -437,15 +460,76 @@ dl.stats dd.ok { color: var(--ok); }
       weekKey: '', days: emptyDays(), history: []
     };
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  /* Every change is written to two places on the phone: localStorage (fast) and
+     IndexedDB (a second copy). If one is wiped, the other brings the hours back. */
+  var localSavedAt = -1;
+  var idbReady = false;   // the second copy is only written once startup recovery has checked it
+  function idbOpen() {
+    return new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+      var r = indexedDB.open('timetracker', 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
+      r.onsuccess = function () { resolve(r.result); };
+      r.onerror = function () { reject(r.error); };
+    });
+  }
+  function idbSet(text) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction('kv', 'readwrite');
+        tx.objectStore('kv').put(text, 'state');
+        tx.oncomplete = function () { db.close(); resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function () {});
+  }
+  function idbGet() {
+    return idbOpen().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction('kv', 'readonly').objectStore('kv').get('state');
+        req.onsuccess = function () { db.close(); resolve(req.result || null); };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function () { return null; });
+  }
+  function save(touch) {
+    if (touch !== false) S.savedAt = Date.now();
+    var text = JSON.stringify(S);
+    try { localStorage.setItem(KEY, text); } catch (e) {}
+    if (idbReady) idbSet(text);
+  }
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
-      S = raw ? Object.assign(blank(), JSON.parse(raw)) : blank();
-    } catch (e) { S = blank(); }
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        S = Object.assign(blank(), parsed);
+        localSavedAt = parsed.savedAt || 0;
+      } else { S = blank(); localSavedAt = -1; }
+    } catch (e) { S = blank(); localSavedAt = -1; }
     if (!Array.isArray(S.days) || S.days.length !== 7) S.days = emptyDays();
     rollover();
   }
+  // After startup: if the IndexedDB copy is newer (or localStorage was wiped), use it.
+  function recoverFromIDB() {
+    idbGet().then(function (raw) {
+      var other = null;
+      if (raw) { try { other = JSON.parse(raw); } catch (e) { other = null; } }
+      if (other && (other.savedAt || 0) > localSavedAt) {
+        S = Object.assign(blank(), other);
+        if (!Array.isArray(S.days) || S.days.length !== 7) S.days = emptyDays();
+        localSavedAt = S.savedAt || 0;
+        rollover();
+        save(false);
+        syncInputs(); renderWeek(); tick();
+        idbReady = true;
+      } else {
+        idbReady = true;
+        idbSet(JSON.stringify(S));
+      }
+    });
+  }
+
   function rollover() {
     var now = new Date(), dk = dateKey(now), wk = mondayKey(now);
     if (S.weekKey && S.weekKey !== wk) {
@@ -459,7 +543,7 @@ dl.stats dd.ok { color: var(--ok); }
     if (S.date !== dk) {
       S.date = dk; S.timeIn = ''; S.lunchStart = ''; S.lunchEnd = ''; S.actualOut = '';
     }
-    save();
+    save(false);
   }
 
   /* ---------- core math (all whole minutes) ---------- */
@@ -776,6 +860,58 @@ dl.stats dd.ok { color: var(--ok); }
       });
     });
 
+    /* ----- backup and restore ----- */
+    function makeBackup() {
+      return 'TT1:' + btoa(unescape(encodeURIComponent(JSON.stringify(Object.assign({}, S)))));
+    }
+    function parseBackup(text) {
+      text = String(text || '').replace(/\s+/g, '');
+      if (text.indexOf('TT1:') !== 0) return null;
+      try {
+        var obj = JSON.parse(decodeURIComponent(escape(atob(text.slice(4)))));
+        if (!obj || !Array.isArray(obj.days) || obj.days.length !== 7) return null;
+        obj.days = obj.days.map(function (v) {
+          return (typeof v === 'number' && isFinite(v) && v >= 0 && v <= 100000) ? Math.round(v) : null;
+        });
+        return obj;
+      } catch (e) { return null; }
+    }
+    function backupMsg(t) { $('backupMsg').textContent = t; }
+
+    $('backupCopy').addEventListener('click', function () {
+      var code = makeBackup();
+      var box = $('backupBox');
+      box.value = code;
+      box.focus(); box.select();
+      var done = function () { backupMsg('Backup copied. Paste it into Notes or an email to yourself.'); };
+      var fallback = function () {
+        try { document.execCommand('copy'); done(); }
+        catch (e) { backupMsg('Select the text above and copy it, then paste it into Notes.'); }
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(done, fallback);
+      } else { fallback(); }
+    });
+
+    $('backupRestore').addEventListener('click', function () {
+      var obj = parseBackup($('backupBox').value);
+      if (!obj) { backupMsg('Paste a backup (it starts with TT1:) into the box first.'); return; }
+      armConfirm($('backupRestore'), function () {
+        S = Object.assign(blank(), obj);
+        S.mode = S.mode === 'week' ? 'week' : 'day';
+        S.lunchMode = S.lunchMode === 'fixed' ? 'fixed' : 'live';
+        S.planned = Math.max(0, Math.min(240, parseInt(S.planned, 10) || 0));
+        S.history = Array.isArray(S.history) ? S.history.slice(-12) : [];
+        ['timeIn', 'lunchStart', 'lunchEnd', 'actualOut'].forEach(function (k) {
+          if (!/^\d{2}:\d{2}$/.test(S[k] || '')) S[k] = '';
+        });
+        rollover();
+        save();
+        syncInputs(); renderWeek(); tick();
+        backupMsg('Restored. Your hours are back.');
+      });
+    });
+
     document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
   }
 
@@ -785,6 +921,7 @@ dl.stats dd.ok { color: var(--ok); }
   renderWeek();
   tick();
   setInterval(tick, 1000);
+  recoverFromIDB();
 })();
 </script>
 <script>
