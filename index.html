@@ -387,7 +387,7 @@ textarea {
   </section>
 
   <p class="note">Everything stays on this device. No account needed.<br><span id="offlineStatus"></span></p>
-  <p class="note" id="appVersion">Version 1.2.1 (Oct 9, 2026)</p>
+  <p class="note" id="appVersion">Version 1.2.2 (Oct 2026)</p>
 </main>
 
 <script>
@@ -866,8 +866,9 @@ textarea {
     }
     function parseBackup(text) {
       text = String(text || '').replace(/\s+/g, '');
-      var at = text.indexOf('TT1:');
-      if (at < 0) return null;
+      var found = /tt1:/i.exec(text);   // accept TT1: in any letter case (keyboards and Notes sometimes lowercase it)
+      if (!found) return null;
+      var at = found.index;
       try {
         var obj = JSON.parse(decodeURIComponent(escape(atob(text.slice(at + 4)))));
         if (!obj || !Array.isArray(obj.days) || obj.days.length !== 7) return null;
